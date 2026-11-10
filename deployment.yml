@@ -1,0 +1,23 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java5-deployment
+  labels:
+    app: java5-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: java5-app
+  template:
+    metadata:
+      labels:
+        app: java5-app
+    spec:
+      containers:
+        - name: java5-app
+          image: snk6182/java-project5:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
