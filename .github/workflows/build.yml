@@ -1,4 +1,4 @@
-name: Java Application Build
+name: Java5 Application Build and Kubernetes Deploy
 
 on:
   push:
@@ -6,11 +6,10 @@ on:
       - main
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-deploy:
+    runs-on: [self-hosted, Linux, X64, myrunner]
 
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -18,26 +17,11 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: temurin
           cache: maven
 
       - name: Maven Clean Package
         run: mvn clean package
-      - name: Check Docker Username
-        run: |
-         if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
-         echo "DOCKER_USERNAME is EMPTY"
-         exit 1
-         else
-         echo "DOCKER_USERNAME is configured"
-         fi
-
-         if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
-         echo "DOCKER_PASSWORD is EMPTY"
-         exit 1
-         else
-         echo "DOCKER_PASSWORD is configured"
-         fi  
 
       - name: Docker Login
         uses: docker/login-action@v3
@@ -46,32 +30,28 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Docker Build
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/java-project5:v1 .
-
+        run: |
+          docker build \
+            -t ${{ secrets.DOCKER_USERNAME }}/java-project5:v1 .
       - name: Docker Push
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/java-project5:v1
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/java-project5:v1
+        
+      - name: Configure Kubernetes kubeconfig
+        env:
+        
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          set -e
+          mkdir -p "$HOME/.kube"
+          printf '%s\n' "$KUBE_CONFIG_DATA" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl config current-context
+          kubectl get nodes
 
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+      - name: Deploy Kubernetes YAML files
+        run: |
+          kubectl apply -f deployment.yml
+          kubectl apply -f service.yml
 
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/java-project5:v1
-
-            docker stop java-project5 || true
-             docker rm java-project5 || true
-  
-            docker run -d --name java-project5 -p 8082:8080 ${{ secrets.DOCKER_USERNAME }}/java-project5:v1
-
-            docker ps
-
-
-
-
-
-
-
-            
+     
